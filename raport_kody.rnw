@@ -1,0 +1,616 @@
+% !TeX TXS-program:compile = txs:///knit2pdf
+\documentclass[12pt]{mwart}
+\usepackage[utf8]{inputenc}
+\usepackage[T1,plmath]{polski}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\title{Raport 1}
+\author{Katarzyna Broczkowska i Aleksandra Winiarska}
+\date{\today}
+\begin{document}
+<<echo=FALSE>>=
+if (.Platform$OS.type == "windows") {
+  pdf.options(encoding = "CP1250")
+}
+@
+\maketitle
+\tableofcontents
+
+\section{Wstęp}
+\subsection{Motywacja do analizy danych}
+We współczesnym świecie istnieje wiele tematów tabu, o~których nie chcemy rozmawiać. Jednym z~nich jest wątek samobójstw. Problem ten dotyka wielu rodzin, więc możemy stwierdzić, że jest to istotna kwestia. Czy moglibyśmy jednak zapobiec chociażby części z~nich? Zapewne znając podstawowe czynniki oddziałujące na zwiększenie skłonności do samobójstwa, moglibyśmy stworzyć specjalne programy i~grupy wsparcia, skierowane do konkretnych grup społecznych. Być może dzięki wypracowaniu przekonania, że osoba pozbawiona chęci do życia nie jest sama i~mimo wszystko komuś na niej zależy, udałoby się znacznie zminimalizować efekt badanego zagadnienia.
+
+W~pracy postaramy się zatem odpowiedzieć na poniższe pytania:
+\begin{itemize}
+\item{Jak wyglądają statystyki odbierania sobie życia na poszczególnych kontynentach?}
+\item{Czy statystyki zamachów samobójczych zmieniały się na przestrzeni 20 lat przed pandemią?}
+\item{Czy prawdopodobieństwo popełnienia samobójstwa ma związek z~wartością dóbr, które posiadamy?}
+\item{Czy poziom przychodów może mieć wpływ na przeprowadzenie próby samobójczej?}
+\end{itemize}
+
+\subsection{Opis danych}
+
+Analizowane dane zostały pozyskane ze strony \href{https://www.kaggle.com/datasets/prasertk/homicide-suicide-rate-and-gdp
+}{kaggle.com}. Tabela zawiera 13.6 tysiąca wierszy i~10 kolumn, które opisują: nazwę kraju (266 unikalnych wartości), kody iso3c i~iso2c (265 unikalnych wartości), lata (od 1970 do 2020), liczbę zabójstw i~samobójstw (na 100.000 mieszkańców), PKB oraz PKB per capita dla kraju, a~także region i~poziom przychodów Banku Światowego.
+
+Analizę przeprowadzimy dla lat 2000--2019, ponieważ jedynie na tej przestrzeni czasowej udostępniono statystyki dotyczące samobójstw. Wszystkie kraje zostały zakwalifikowane do odpowiednich kontynentów na podstawie kodów iso3c. Jeśli dany kraj jest zależny od innego i~oba państwa znajdowały się na różnych kontynentach, dany kraj został przypisany do kontynentu, na którym leży. Dla Antarktyki i~Subantarktyki nie odnotowano statystyk, więc bez utraty ogólności pomijamy je w~analizie.
+
+W celu przeprowadzenia analizy, poza funkcjami wbudowanymi, wykorzystamy trzy biblioteki:
+
+<<warning=F, message=F>>=
+library(tidyverse)
+library(ggplot2)
+library(xtable)
+@
+<< echo=F, include=F>>=
+setwd(getwd())
+dane <- read.csv("suicide_homicide_gdp.csv")
+#summary(dane)
+@
+
+<< echo=F>>=
+dane$country <- as.factor(dane$country)
+dane$iso3c <- as.factor(dane$iso3c)
+dane$iso2c <- as.factor(dane$iso2c)
+dane$year <- as.factor(dane$year)
+dane$adminregion <- as.factor(dane$adminregion)
+dane$incomeLevel <- as.factor(dane$incomeLevel)
+
+#summary(dane)
+@
+
+
+<< echo=F>>=
+#dane dla kontynentów lata 1979-2020
+Afryka <- c("AGO", "BDI", "BEN", "BFA", "BWA", "CAF", "CIV", "CMR", "COD",
+            "COG", "COM", "CPV", "DJI", "DZA", "EGY", "ERI", "ESH", "ETH",
+            "GAB", "GHA", "GIN", "GMB", "GNB", "GNQ", "KEN", "LBR", "LBY",
+            "LSO", "MAR", "MDG", "MLI", "MOZ", "MRT", "MUS", "MWI", "MYT",
+            "NAM", "NER", "NGA", "REU", "RWA", "SDN", "SEN", "SHN", "SLE",
+            "SOM", "SSD", "STP", "SWZ", "SYC", "TCD", "TGO", "TUN", "TZA",
+            "UGA", "ZAF", "ZMB", "ZWE")
+Azja <- c("AFG", "ARE", "AZE", "BGD", "BHR", "BRN", "BTN", "CCK", "CHN", "CXR",
+          "CYP", "HKG", "IDN", "IND", "IOT", "IRN", "IRQ", "ISR", "JOR", "JPN",
+          "KAZ", "KGZ", "KHM", "KOR", "KWT", "LAO", "LBN", "LKA", "MAC", "MDV",
+          "MMR", "MNG", "MYS", "NPL", "OMN", "PAK", "PHL", "PRK", "PSE", "QAT",
+          "RUS", "SAU", "SGP", "SYR", "THA", "TJK", "TKM", "TLS", "TUR", "TWN",
+          "UZB", "VNM", "YEM")
+Europa <- c("ALA", "ALB", "AND", "ARM", "AUT", "BEL", "BGR", "BIH", "BLR",
+            "CHE", "CZE", "DEU", "DNK", "ESP", "EST", "FIN", "FRA", "FRO",
+            "GBR", "GEO", "GGY", "GIB", "GRC", "HRV", "HUN", "IMN", "IRL",
+            "ISL", "ITA", "JEY", "LIE", "LTU", "LUX", "LVA", "MCO", "MDA",
+            "MKD", "MLT", "MNE", "NLD", "NOR", "POL", "PRT", "ROU", "RUS",
+            "SJM", "SMR", "SRB", "SVK", "SVN", "SWE", "UKR", "VAT", "XKX")
+Ameryka_Południowa <- c("ARG", "BOL", "BRA", "CHL", "COL", "CUW", "ECU", "GUF",
+                        "GUY", "PER", "PRY", "SUR", "TTO", "URY", "VEN")
+Ameryka_Północna <- c("ABW", "AIA", "ATG", "BES", "BHS", "BLM", "BLZ", "BMU",
+                      "BRB", "CAN", "CRI", "CUB", "CYM", "DMA", "FLK", "DOM",
+                      "GLP", "GRD", "GRL", "GTM", "HND", "HTI", "JAM", "KNA",
+                      "LCA", "MAF", "MEX", "MSR", "MTQ", "NIC", "PAN", "PRI",
+                      "SLV", "SPM", "SXM", "TCA", "UMI", "USA", "VCT", "VGB",
+                      "VIR")
+Antarktyka_i_Subantarktyka <- c("ATA", "ATF", "BVT", "HMD", "SGS")
+Australia_i_Oceania <- c("ASM", "AUS", "COK", "FJI", "FSM", "GUM", "KIR", "MHL",
+                         "MNP", "NCL", "NFK", "NIU", "NRU", "NZL", "PCN", "PLW",
+                         "PNG", "PYF", "SLB", "TKL", "TON", "TUV", "UMI", "VUT",
+                         "WLF", "WSM")
+@
+
+<< echo=F>>=
+#dane dla samobójstw są od 2000 do 2019 roku, dlatego ograniczymy się do tych lat
+lata <- as.character(seq(2000, 2019, by = 1))
+dane_Afryka <- dane[dane$iso3c %in% Afryka & dane$year %in% lata, ]
+dane_Azja <- dane[dane$iso3c %in% Azja & dane$year %in% lata, ]
+dane_Europa <- dane[dane$iso3c %in% Europa & dane$year %in% lata, ]
+dane_Ameryka_Południowa <- dane[dane$iso3c %in% Ameryka_Południowa &
+                                  dane$year %in% lata, ]
+dane_Ameryka_Północna <- dane[dane$iso3c %in% Ameryka_Północna &
+                                dane$year %in% lata, ]
+dane_Antarktyka_i_Subantarktyka <- dane[dane$iso3c %in%
+                                          Antarktyka_i_Subantarktyka &
+                                          dane$year %in% lata, ]
+dane_Australia_i_Oceania <- dane[dane$iso3c %in% Australia_i_Oceania &
+                                   dane$year %in% lata, ]
+#dane z Antarktyki i Subantarktyki są puste, dlatego pomijamy je.
+@
+
+<< echo=F>>=
+Kontynenty <- c("Afryka", "Azja", "Europa", "Ameryka Północna",
+                "Ameryka Południowa", "Australia i Oceania")
+dane_Afryka_średnie_samobójstwa <- c()
+dane_Azja_średnie_samobójstwa <- c()
+dane_Europa_średnie_samobójstwa <- c()
+dane_Ameryka_Północna_średnie_samobójstwa <- c()
+dane_Ameryka_Południowa_średnie_samobójstwa <- c()
+dane_Australia_i_Oceania_średnie_samobójstwa <- c()
+
+for (i in 1:length(lata)) {
+  dane_Afryka_średnie_samobójstwa[i] <- mean(
+    dane_Afryka[dane_Afryka$year == lata[i],
+                ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  dane_Azja_średnie_samobójstwa[i] <- mean(
+    dane_Azja[dane_Azja$year == lata[i],
+              ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  dane_Europa_średnie_samobójstwa[i] <- mean(
+    dane_Europa[dane_Europa$year == lata[i],
+                ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  dane_Ameryka_Północna_średnie_samobójstwa[i] <- mean(
+    dane_Ameryka_Północna[dane_Ameryka_Północna$year == lata[i],
+                          ]$Suicide.mortality.rate..per.100.000.population.,
+    na.rm = TRUE)
+  dane_Ameryka_Południowa_średnie_samobójstwa[i] <- mean(
+    dane_Ameryka_Południowa[dane_Ameryka_Południowa$year == lata[i],
+                            ]$Suicide.mortality.rate..per.100.000.population.,
+    na.rm = TRUE)
+  dane_Australia_i_Oceania_średnie_samobójstwa[i] <- mean(
+    dane_Australia_i_Oceania[dane_Australia_i_Oceania$year == lata[i],
+                             ]$Suicide.mortality.rate..per.100.000.population.,
+    na.rm = TRUE)
+}
+
+dane_Afryka_średnie_GPD <- c()
+dane_Azja_średnie_GPD <- c()
+dane_Europa_średnie_GPD <- c()
+dane_Ameryka_Północna_średnie_GPD <- c()
+dane_Ameryka_Południowa_średnie_GPD <- c()
+dane_Australia_i_Oceania_średnie_GPD <- c()
+
+for (i in 1:length(lata)) {
+  dane_Afryka_średnie_GPD[i] <- mean(
+    dane_Afryka[dane_Afryka$year == lata[i],
+                ]$GDP.per.capita..PPP..current.international..., na.rm = TRUE)
+  dane_Azja_średnie_GPD[i] <- mean(
+    dane_Azja[dane_Azja$year == lata[i],
+              ]$GDP.per.capita..PPP..current.international..., na.rm = TRUE)
+  dane_Europa_średnie_GPD[i] <- mean(
+    dane_Europa[dane_Europa$year == lata[i],
+                ]$GDP.per.capita..PPP..current.international..., na.rm = TRUE)
+  dane_Ameryka_Północna_średnie_GPD[i] <- mean(
+    dane_Ameryka_Północna[dane_Ameryka_Północna$year == lata[i],
+                          ]$GDP.per.capita..PPP..current.international...,
+    na.rm = TRUE)
+  dane_Ameryka_Południowa_średnie_GPD[i] <- mean(
+    dane_Ameryka_Południowa[dane_Ameryka_Południowa$year == lata[i],
+                            ]$GDP.per.capita..PPP..current.international...,
+    na.rm = TRUE)
+  dane_Australia_i_Oceania_średnie_GPD[i] <- mean(
+    dane_Australia_i_Oceania[dane_Australia_i_Oceania$year == lata[i],
+                             ]$GDP.per.capita..PPP..current.international...,
+    na.rm = TRUE)
+}
+
+dane_Afryka_średnie_samobójstwa_GPD_df <- data.frame(
+  Średnie_samobójstwa = dane_Afryka_średnie_samobójstwa,
+  Średnie_GPD = dane_Afryka_średnie_GPD,
+  Kontynent = factor(
+    rep(Kontynenty[1], length(dane_Afryka_średnie_samobójstwa))),
+  Lata = factor(lata))
+
+dane_Azja_średnie_samobójstwa_GPD_df <- data.frame(
+  Średnie_samobójstwa = dane_Azja_średnie_samobójstwa,
+  Średnie_GPD = dane_Azja_średnie_GPD,
+  Kontynent = factor(
+    rep(Kontynenty[2], length(dane_Azja_średnie_samobójstwa))),
+  Lata = factor(lata))
+
+dane_Europa_średnie_samobójstwa_GPD_df <- data.frame(
+  Średnie_samobójstwa = dane_Europa_średnie_samobójstwa,
+  Średnie_GPD = dane_Europa_średnie_GPD,
+  Kontynent = factor(
+    rep(Kontynenty[3], length(dane_Europa_średnie_samobójstwa))),
+  Lata = factor(lata))
+
+dane_Ameryka_Północna_średnie_samobójstwa_GPD_df <- data.frame(
+  Średnie_samobójstwa = dane_Ameryka_Północna_średnie_samobójstwa,
+  Średnie_GPD = dane_Ameryka_Północna_średnie_GPD,
+  Kontynent = factor(
+    rep(Kontynenty[4], length(dane_Ameryka_Północna_średnie_samobójstwa))),
+  Lata = factor(lata))
+
+dane_Ameryka_Południowa_średnie_samobójstwa_GPD_df <- data.frame(
+  Średnie_samobójstwa = dane_Ameryka_Południowa_średnie_samobójstwa,
+  Średnie_GPD = dane_Ameryka_Południowa_średnie_GPD,
+  Kontynent = factor(
+    rep(Kontynenty[5], length(dane_Ameryka_Południowa_średnie_samobójstwa))),
+  Lata = factor(lata))
+
+dane_Australia_i_Oceania_średnie_samobójstwa_GPD_df <- data.frame(
+  Średnie_samobójstwa = dane_Australia_i_Oceania_średnie_samobójstwa,
+  Średnie_GPD = dane_Australia_i_Oceania_średnie_GPD,
+  Kontynent = factor(
+    rep(Kontynenty[6], length(dane_Australia_i_Oceania_średnie_samobójstwa))),
+  Lata = factor(lata))
+
+data_średnie <- rbind(dane_Afryka_średnie_samobójstwa_GPD_df,
+                      dane_Azja_średnie_samobójstwa_GPD_df,
+                      dane_Europa_średnie_samobójstwa_GPD_df,
+                      dane_Ameryka_Północna_średnie_samobójstwa_GPD_df,
+                      dane_Ameryka_Południowa_średnie_samobójstwa_GPD_df,
+                      dane_Australia_i_Oceania_średnie_samobójstwa_GPD_df)
+
+@
+
+<< echo=F>>=
+dane_Afryka_suma_incomeLevel <- data.frame()
+dane_Azja_suma_incomeLevel <- data.frame()
+dane_Europa_suma_incomeLevel <- data.frame()
+dane_Ameryka_Północna_suma_incomeLevel <- data.frame()
+dane_Ameryka_Południowa_suma_incomeLevel <- data.frame()
+dane_Australia_i_Oceania_suma_incomeLevel <- data.frame()
+
+
+dane_Afryka_suma_incomeLevel_year <- dane_Afryka[dane_Afryka$year == 2019,
+] %>% count(incomeLevel)
+
+dane_Azja_suma_incomeLevel_year <- dane_Azja[dane_Azja$year == 2019,
+] %>% count(incomeLevel)
+
+dane_Europa_suma_incomeLevel_year <- dane_Europa[dane_Europa$year == 2019,
+] %>% count(incomeLevel)
+
+dane_Ameryka_Północna_suma_incomeLevel_year <- dane_Ameryka_Północna[dane_Ameryka_Północna$year == 2019,
+] %>% count(incomeLevel)
+
+dane_Ameryka_Południowa_suma_incomeLevel_year <- dane_Ameryka_Południowa[dane_Ameryka_Południowa$year == 2019,
+] %>% count(incomeLevel)
+
+dane_Australia_i_Oceania_suma_incomeLevel_year <- dane_Australia_i_Oceania[dane_Australia_i_Oceania$year == 2019,
+] %>% count(incomeLevel)
+
+
+dane_Afryka_suma_incomeLevel_df <- cbind(
+  dane_Afryka_suma_incomeLevel_year,
+  Kontynent = factor(rep(Kontynenty[1], nrow(dane_Afryka_suma_incomeLevel_year))))
+
+dane_Azja_suma_incomeLevel_df <- cbind(
+  dane_Azja_suma_incomeLevel_year,
+  Kontynent = factor(rep(Kontynenty[2], nrow(dane_Azja_suma_incomeLevel_year))))
+
+dane_Europa_suma_incomeLevel_df <- cbind(
+  dane_Europa_suma_incomeLevel_year,
+  Kontynent = factor(rep(Kontynenty[3], nrow(dane_Europa_suma_incomeLevel_year))))
+
+dane_Ameryka_Północna_suma_incomeLevel_df <- cbind(
+  dane_Ameryka_Północna_suma_incomeLevel_year,
+  Kontynent = factor(rep(Kontynenty[4],
+                         nrow(dane_Ameryka_Północna_suma_incomeLevel_year))))
+
+dane_Ameryka_Południowa_suma_incomeLevel_df <- cbind(
+  dane_Ameryka_Południowa_suma_incomeLevel_year,
+  Kontynent = factor(rep(Kontynenty[5],
+                         nrow(dane_Ameryka_Południowa_suma_incomeLevel_year))))
+
+dane_Australia_i_Oceania_suma_incomeLevel_df <- cbind(
+  dane_Australia_i_Oceania_suma_incomeLevel_year,
+  Kontynent = factor(rep(Kontynenty[6],
+                         nrow(dane_Australia_i_Oceania_suma_incomeLevel_year))))
+
+data_incomeLevel <- rbind(dane_Afryka_suma_incomeLevel_df,
+                          dane_Azja_suma_incomeLevel_df,
+                          dane_Europa_suma_incomeLevel_df,
+                          dane_Ameryka_Północna_suma_incomeLevel_df,
+                          dane_Ameryka_Południowa_suma_incomeLevel_df,
+                          dane_Australia_i_Oceania_suma_incomeLevel_df)
+@
+<<echo=F>>=
+income_Level <- unique(data_incomeLevel$incomeLevel)
+
+dane_Afryka_średnie_samobójstwa_inc <- c()
+dane_Azja_średnie_samobójstwa_inc <- c()
+dane_Europa_średnie_samobójstwa_inc <- c()
+dane_Ameryka_Północna_średnie_samobójstwa_inc <- c()
+dane_Ameryka_Południowa_średnie_samobójstwa_inc <- c()
+dane_Australia_i_Oceania_średnie_samobójstwa_inc <- c()
+
+for (i in 1:length(income_Level)) {
+  if (income_Level[i] %in% dane_Afryka$incomeLevel) {
+  dane_Afryka_średnie_samobójstwa_inc[i] <- mean(dane_Afryka[
+    dane_Afryka$incomeLevel==income_Level[i],
+  ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  }
+  else{
+    dane_Afryka_średnie_samobójstwa_inc[i] <- NA
+  }
+  if (income_Level[i] %in% dane_Azja$incomeLevel) {
+    dane_Azja_średnie_samobójstwa_inc[i] <- mean(dane_Azja[
+      dane_Azja$incomeLevel==income_Level[i],
+    ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  }
+  else{
+    dane_Azja_średnie_samobójstwa_inc[i] <- NA
+  }
+  if (income_Level[i] %in% dane_Europa$incomeLevel) {
+    dane_Europa_średnie_samobójstwa_inc[i] <- mean(dane_Europa[
+      dane_Europa$incomeLevel==income_Level[i],
+    ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  }
+  else{
+    dane_Europa_średnie_samobójstwa_inc[i] <- NA
+  }
+  if (income_Level[i] %in% dane_Ameryka_Północna$incomeLevel) {
+    dane_Ameryka_Północna_średnie_samobójstwa_inc[i] <- mean(dane_Ameryka_Północna[
+      dane_Ameryka_Północna$incomeLevel==income_Level[i],
+    ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  }
+  else{
+    dane_Ameryka_Północna_średnie_samobójstwa_inc[i] <- NA
+  }
+  if (income_Level[i] %in% dane_Ameryka_Południowa$incomeLevel) {
+    dane_Ameryka_Południowa_średnie_samobójstwa_inc[i] <- mean(dane_Ameryka_Południowa[
+      dane_Ameryka_Południowa$incomeLevel==income_Level[i],
+    ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  }
+  else{
+    dane_Ameryka_Południowa_średnie_samobójstwa_inc[i] <- NA
+  }
+  if (income_Level[i] %in% dane_Australia_i_Oceania$incomeLevel) {
+    dane_Australia_i_Oceania_średnie_samobójstwa_inc[i] <- mean(dane_Australia_i_Oceania[
+      dane_Australia_i_Oceania$incomeLevel==income_Level[i],
+    ]$Suicide.mortality.rate..per.100.000.population., na.rm = TRUE)
+  }
+  else{
+    dane_Australia_i_Oceania_średnie_samobójstwa_inc[i] <- NA
+  }
+}
+
+Średnie_samobójstwa <- t(data.frame(dane_Afryka_średnie_samobójstwa_inc,
+                                dane_Azja_średnie_samobójstwa_inc,
+                                dane_Europa_średnie_samobójstwa_inc,
+                                dane_Ameryka_Północna_średnie_samobójstwa_inc,
+                                dane_Ameryka_Południowa_średnie_samobójstwa_inc,
+                                dane_Australia_i_Oceania_średnie_samobójstwa_inc))
+colnames(Średnie_samobójstwa) <- c(" High inc.", "Low Inc.", "Lwr. mid. inc.", "Upr. mid. inc.", "Not classified")
+rownames(Średnie_samobójstwa) <- c("Afryka", "Azja", "Europa", "Ameryka Pn", "Ameryka Pd.", "Aust. i Oce.")
+@
+<<echo=F>>=
+kor_Afryka_Pearson <- cor(
+  dane_Afryka_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Afryka_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "pearson")
+
+kor_Azja_Pearson <- cor(
+  dane_Azja_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Azja_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "pearson")
+
+kor_Europa_Pearson <- cor(
+  dane_Europa_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Europa_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "pearson")
+
+kor_Ameryka_Północna_Pearson <- cor(
+  dane_Ameryka_Północna_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Ameryka_Północna_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "pearson")
+
+kor_Ameryka_Południowa_Pearson <- cor(
+  dane_Ameryka_Południowa_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Ameryka_Południowa_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "pearson")
+
+kor_Australia_i_Oceania_Pearson <- cor(
+  dane_Australia_i_Oceania_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Australia_i_Oceania_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "pearson")
+
+
+kor_Afryka_Spearman <- cor(
+  dane_Afryka_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Afryka_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "spearman")
+
+kor_Azja_Spearman <- cor(
+  dane_Azja_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Azja_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "spearman")
+
+kor_Europa_Spearman <- cor(
+  dane_Europa_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Europa_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "spearman")
+
+kor_Ameryka_Północna_Spearman <- cor(
+  dane_Ameryka_Północna_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Ameryka_Północna_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "spearman")
+
+kor_Ameryka_Południowa_Spearman <- cor(
+  dane_Ameryka_Południowa_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Ameryka_Południowa_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "spearman")
+
+kor_Australia_i_Oceania_Spearman <- cor(
+  dane_Australia_i_Oceania_średnie_samobójstwa_GPD_df$Średnie_samobójstwa,
+  dane_Australia_i_Oceania_średnie_samobójstwa_GPD_df$Średnie_GPD,
+  method = "spearman")
+
+korelacja_Pearson <- c(kor_Afryka_Pearson,
+                       kor_Azja_Pearson,
+                       kor_Europa_Pearson,
+                       kor_Ameryka_Północna_Pearson,
+                       kor_Ameryka_Południowa_Pearson,
+                       kor_Australia_i_Oceania_Pearson)
+
+korelacja_Spearman <- c(kor_Afryka_Spearman,
+                        kor_Azja_Spearman,
+                        kor_Europa_Spearman,
+                        kor_Ameryka_Północna_Spearman,
+                        kor_Ameryka_Południowa_Spearman,
+                        kor_Australia_i_Oceania_Spearman)
+
+Korelacja <- data.frame(korelacja_Pearson, korelacja_Spearman)
+colnames(Korelacja) <- c(" Kor. Pearsona", "Kor. Spearmana")
+rownames(Korelacja) <- Kontynenty
+@
+\section{Analiza opisowa}
+
+\subsection{Wykres samobójstw}
+
+
+<< samobójstwa, echo=F, fig.width=12, fig.height=8, fig.cap="Wykres samobójstw w badanym okresie na badanych kontynentach">>=
+ggplot(data_średnie,
+       aes(x = Lata,
+           y = Średnie_samobójstwa,
+           fill = Kontynent)) +
+  geom_bar(stat = "identity",
+           position = "dodge") +
+  ggtitle("Wykres średniej liczby samobójstw na 100.000 mieszkańców w latach 2000-2019 na
+          badanych kontynentach") +
+  xlab("Rok") +
+  ylab("Średnia liczba samobójstw na 100.000 mieszkańców")
+@
+
+
+Wykres \ref{fig:samobójstwa} przedstawia średnią liczbę samobójstw na 100.000 mieszkańców w~danych krajach zakwalifikowanych do odpowiednich kontynentów (z~podziałem na lata). 
+
+Analizując wykres, zauważamy różnice w~częstości popełniania samobójstw na poszczególnych kontynentach. Do roku 2015, ten problem był najczęściej obserwowany  w~Europie. Po 2015 w~Europie nastąpił spadek i~na niechlubnym, pierwszym miejscu uplasowała się Australia i~Oceania. Na dalszych pozycjach (dla każdego z~rozpatrywanych lat) znajdują się odpowiednio (w~kolejności malejącej): Ameryka Południowa, Afryka, Azja oraz Ameryka Północna.
+
+W~przypadku Europy obserwujemy prawie liniowy trend spadkowy, co zdecydowanie może napawać optymizmem. Oznacza to bowiem, że z~roku na rok ludzie coraz rzadziej decydowali się na odbieranie sobie życia. Na początku badanego okresu prawie co 5400 osoba popełniała samobójstwo. Wartość tą udało się zredukować do około co 7600 osoby. W~latach 2007--2009 obserwujemy niewielki wzrost, co mogło być spowodowane globalnym kryzysem gospodarczym. 
+
+W~Australii i~Oceanii problem samobójstw plasował się mniej więcej na stałym poziomie w~latach 2000--2019. Średnio mniej niż 15 na 100 tysięcy osób popełniło samobójstwo.
+
+Od roku 2006 obserwujemy delikatny trend wzrostowy średniej w~Ameryce Południowej. W~tym roku średnia liczba samobójstw była najmniejsza i~wynosiła nieco ponad 10 na 100.000 osób. Skala problemu wzrosła i~w~2019 roku już mniej więcej jedna osoba (na 100.000 mieszkańców) więcej decydowała się na ten krok.
+
+W~przypadku Afryki nie zauważamy silnego trendu zarówno wzrostowego jak i~malejącego, występuje jednak pewna okresowość. Istotna jest natomiast obserwacja, że od roku 2012 problem samobójstw zdecydowanie maleje. W~2019 roku już średnio co 10900 osoba odbierała sobie życie.
+
+W~Azji samobójstwa były popełniane coraz rzadziej z~roku na rok. W~ostatnim roku z~badanego okresu ten dramat dotknął średnio dwukrotnie mniej osób niż w~Europie.
+
+Ameryka Północna jest kontynentem, w~którym badany problem występuje najrzadziej. Około 6 na 100 tysięcy mieszkańców tego kontynentu popełnia samobójstwo. Nie oznacza to jednak, że ta wiadomość może być zbagatelizowana. Mimo wszystko jest to średnio o~6 osób za dużo.
+
+\subsection{Wykres PKB per capita}
+<< PKB_lata, echo=F, fig.width=12, fig.height=8, fig.cap="Wykres PKB per capita w badanym okresie na badanych kontynentach">>=
+ggplot(data_średnie,
+       aes(x = Lata,
+           y = Średnie_GPD,
+           fill = Kontynent)) +
+  geom_bar(stat = "identity",
+           position = "dodge") +
+  ggtitle("Wykres średniego PKB per capita w latach 2000-2019 na
+          badanych kontynentach") +
+  xlab("Rok") +
+  ylab("Średnie PKB per capita")
+@
+
+Wykres \ref{fig:PKB_lata} przedstawia średnie PKB per capita w~danych krajach (zakwalifikowanych do odpowiednich kontynentów), z~podziałem na lata. 
+
+Z~wykresu możemy wywnioskować, że dla każdego kontynentu z~roku na rok PKB per capita wzrastało. Oczywiście działo się to z~różną intensywnością na różnych kontynentach. W~2009 roku nastąpił spadek, który mógł być związany z~wcześniej wspomnianym kryzysem gospodarczym.
+
+Pierwszym z~oczywistych wniosków, który nasuwa się po porównaniu wykresów \ref{fig:samobójstwa} i~\ref{fig:PKB_lata} jest to, że z~roku na rok, wraz ze wzrostem PKB spadał odsetek samobójstw w Europie.
+
+Podobne zachowanie obserwujemy w Azji.
+
+Dla pozostałych kontynentów trudno jest wysnuć interesujące konkluzje. Może to oznaczać, że liczba samobójstw na przestrzeni 20 lat nie zależała od dobrobytu obywateli.
+
+Powiązaniu PKB per capita ze średnią liczbą samobójstw na 100.000 mieszkańców na danym kontynencie przyjrzymy się bliżej w~następnym podrozdziale.
+
+\subsection{Wykres samobójstw i PKB per capita}
+<< samobójstwa_PKB, echo=F, fig.width=12, fig.height=8, fig.cap="Wykres samobójstw i PKB w badanym okresie na badanych kontynentach">>=
+ggplot(data_średnie,
+       aes(x = Średnie_GPD,
+           y = Średnie_samobójstwa,
+           color = Kontynent)) +
+  geom_point() +
+  ggtitle("Wykres średniej liczby samobójstw na 100.000 mieszkańców i średniego
+          PKB per capita na badanych kontynentach") +
+  xlab("Średnie PKB per capita") +
+  ylab("Średnia liczba samobójstw na 100.000 mieszkańców")
+@
+
+Wykres \ref{fig:samobójstwa_PKB} przedstawia powiązanie średniej liczby samobójstw na 100 tysięcy mieszkańców i~PKB per capita dla danego kraju, przypisanego do odpowiedniego kontynentu. Każdy punkt reprezentuje średnią liczbę samobójstw i~wskaźnik PKB per capita w~konkretnym roku.
+
+Z~wykresu widzimy, że Europa była kontynentem o~największym stosunku PKB per capita do liczby zamachów samobójczych. Warto zauważyć, że jest to malejący stosunek liniowy. Oznacza to, że im większa średnia łączna wartość dóbr i~usług wytworzonych w~danych krajach w~Europie, tym mniej samobójstw było odnotowywanych. Może to oznaczać, że Europejczycy są szczęśliwsi i~mają mniejsze skłonności samobójcze, jeśli są bogatsi.
+
+W~Afryce, która miała najmniejszy wskaźnik PKB per capita, widzimy ciekawą zależność. Problem samobójstw narastał dla szczególnych wartości wskaźnika dobrobytu (mniej więcej dla początku i~środka rozpatrywanego przedziału PKB per capita Afryki). Skala problemu szybko maleje wraz ze wzrostem wskaźnika od połowy przedziału PKB per capita dla Afryki. Wnioski byłyby podobne jak dla Europy. W~tym przypadku natomiast dodatkowo możemy stwierdzić, że przy mniejszej (niż średnia dla rozpatrywanego przedziału) wartości wskaźnika, zjawisko samobójstw również malało. Oznacza to, że dla Afrykanów dobrobyt nie jest aż tak ważny jak dla Europejczyków.
+
+W~przypadku pozostałych kontynentów nie obserwujemy tak silnego trendu. Możemy powiedzieć, że dla Azji występuje ogólny trend malejący. Wnioski byłyby podobne do tych wysnutych dla Europy. Dla Ameryki Północnej oraz Australii i~Oceanii nie dostrzegamy istotnego trendu. Na tych kontynentach dobrobyt obywateli prawdopodobnie nie wpływał na ich decyzję o~popełnieniu samobójstwa. 
+
+Interesujące zjawisko zauważamy dla Ameryki Południowej. W~tym przypadku wraz ze wzrostem wskaźnika dobrobytu rośnie również średnia liczba samobójstw na 100 tysięcy mieszkańców. Oznacza to, że wraz ze wzrostem dobrobytu mieszkańców odnotowana została większa liczba samobójstw. Może być to przesłanka do stwierdzenia, że pieniądze szczęścia nie dają.
+
+Podsumowując, nie jesteśmy w~stanie określić, czy globalnie dobrobyt obywateli na wpływ na ich samopoczucie i~w~efekcie na decyzję o~podjęciu (bądź nie) próby samobójczej. Dla każdego z~rozpatrywanych kontynentów sytuacja wyglądała inaczej. Może to oznaczać duże różnice w~postrzeganiu świata, w~zależności od tego, gdzie mieszkamy. Każdy bowiem boryka się z~innymi problemami, których jednostki z~innych stron świata mogą nie zrozumieć, bądź nawet uznać za błahe.
+
+\subsection{Tabela korelacji samobójstw i PKB per capita}
+
+<<korelacja, echo=FALSE, results='asis'>>=
+print(xtable(Korelacja, digits=2, caption = "Tabela korelacji samobójstw i PKB per capita", label="Korelacja Persona i korelacja Spearmana"), 
+      size="\\fontsize{9pt}{10pt}\\selectfont",
+      include.rownames=TRUE, 
+      include.colnames=TRUE,
+      caption.placement="bottom"
+      )
+@
+
+W tabeli \ref{Korelacja Persona i korelacja Spearmana} znajdują się wartości korelacji (Pearson'a i~Spearman'a) pomiędzy średnią liczbą samobójstw a~PKB per capita na badanym kontynencie.
+
+Wartości korelacji dla Europy są takie, jak mogliśmy się spodziewać --- istnieje bardzo mocna ujemna korelacja pomiędzy średnią liczbą samobójstw a~PKB per capita. Oznacza to, że wraz ze wzrostem PKB per capita, malała liczba samobójstw.
+
+Wciąż bardzo mocną, ale słabszą niż w~przypadku Europy, negatywną korelacją cechuje się Azja. 
+
+Mocną korelację ujemną uzyskujemy również dla Ameryki Północnej. Może być to zaskakujący wynik w~porównaniu do tego, co obserwowaliśmy na wykresie \ref{fig:samobójstwa_PKB}.
+
+Słabą korelacją negatywną wykazują również kraje znajdujące się w~Afryce. Może to oznaczać, że na tym kontynencie spadek PKB per capita nie ma wpływu na zwiększenie skłonności do czynów samobójczych.
+
+Słabą korelacją dodatnią charakteryzuje się Australia i~Oceania, a~nieznacznie mocniejszą Ameryka Południowa (co było doskonale widoczne na wykresie \ref{fig:samobójstwa_PKB}). Oznacza to, że wraz ze wzrostem PKB per capita na tym kontynencie, wzrastała liczba samobójstw.
+
+Możemy zatem przyjąć, że globalnie PKB per capita będzie miało wpływ na częstość odbierania sobie życia. W~tym przypadku możemy stwierdzić, że im większe PKB per capita, tym mniej samobójstw było popełnianych.
+
+\subsection{Wykres przychodów}
+<< przychody, echo=F, fig.width=12, fig.height=8, fig.cap="Wykres incomeLevel w badanym okresie na badanych kontynentach">>=
+ggplot(data_incomeLevel,
+       aes(x=Kontynent,
+           y = n,
+           fill = incomeLevel)) +
+  geom_bar(stat = "identity",
+           position = "dodge") +
+  ggtitle("Wykres incomeLevel w badanym okresie na badanych kontynentach") +
+  xlab("Kontynent") +
+  ylab("n")
+@
+
+Wykres \ref{fig:przychody} przedstawia średni poziom przychodów, określony przez Bank Światowy, na każdym z~kontynentów. Na osi $OY$ znajdują się zliczone lata, w~których dany przychód został odnotowany (w~pewnym kraju leżącym na danym kontynencie). 
+
+Łatwo zauważyć, że Europa była kontynentem, na którym odnotowano największe różnice w przychodach. Ponad połowa krajów na tym kontynencie była zaklasyfikowana do rubryki o~wysokich przychodach. Druga połowa została zakwalifikowana do krajów o~średnich przychodach (ze zdecydowaną przewagą dochodu powyżej średniej).
+
+Ameryka Północna jest kontynentem, na którym największy odsetek krajów posiadał wysokie przychody. Jest to jednak wartość ponad dwukrotnie mniejsza niż w~przypadku Europy. Na tym kontynencie również liczba krajów z~przychodem powyżej średniej, przeważała nad tymi, z~przychodem poniżej średniej.
+
+Kontynentem o~najniższych średnich dochodach jest Afryka. Możemy oszacować, że zdecydowana większość krajów posiadała dochody niskie i~poniżej średniej. Na tym kontynencie istniało ponad dwukrotnie mniej (względem niskich i~średnich dochodów) państw o~dochodzie powyżej średniej i~niewielki odsetek tych, które posiadały wysokie dochody.
+
+W~Azji przychody wysokie i~te oscylujące wokół średniej, rozkładały się mniej więcej po równo (z~przewagą przychodów poniżej średniej). Ponadto obserwujemy występowanie klasy państw o~niskich przychodach. Było ich średnio czterokrotnie mniej od tych, które mają przychody poniżej średniej.
+
+Podobnie sytuacja wygląda w~Australii i~Oceanii. Najwięcej krajów posiadało wysokie przychody. Należy jednak zauważyć, że jest to prawie czterokrotnie mniejsza wartość, niż w przypadku Europy. Nieznacznie mniej państw zostało zakwalifikowanych do przychodów poniżej średniej, a~jeszcze mniej powyżej średniej. Nie są to jednak duże różnice.
+
+Ameryka Południowa charakteryzowała się największą liczbą przychodów powyżej średniej. Krajów o~wysokich przychodach było już o~połowę mniej. Dodatkowo obserwujemy niski odsetek państw o~przychodach poniżej średniej i~niesklasyfikowanych.
+
+Analizując wykres \ref{fig:przychody} i~posiadając już wiedzę o~liczbie samobójstw na danym kontynencie, nie jesteśmy w~stanie jednoznacznie stwierdzić, czy wielkość przychodów mogła wpływać na liczbę samobójstw. Aby to określić posłużymy się tabelą, którą przeanalizujemy w~następnym podrozdziale.
+
+\subsection{Tabela samobójstw i wysokości przychodów}
+
+<<przychody_tab, results='asis' ,echo=F>>=
+print(xtable(Średnie_samobójstwa, caption = "Tabela samobójstw i wysokości przychodów", digits=2, label="Średnie samobójstwa w danym incomeLevel"), 
+      size="\\fontsize{9pt}{10pt}\\selectfont", 
+      include.rownames=TRUE,
+      include.colnames=TRUE, 
+      caption.placement="bottom",
+      NA.string = "NA"
+)
+@
+
+W~tabeli \ref{Średnie samobójstwa w danym incomeLevel} przestawiono średnią liczbę samobójstw na 100.000 mieszkańców z~podziałem na dochody na danym kontynencie. 
+
+Największy średni odsetek samobójstw odnotowano dla krajów o~przychodzie poniżej średniego. Może to być związane z~silnym wpływem państw Europejskich, w~których ogólny odsetek samobójstw był największy. Wpływ na wzrost średniej liczby samobójstw w~tym przedziale miała również Australia i~Oceania. Dla obu kontynentów, kraje o~dochodzie poniżej średniego, cechowały się najwyższym odsetkiem samobójstw.
+
+W~przypadku krajów o~dochodzie powyżej średniego, do zamachów samobójczych dochodziło najczęściej w~Afryce i~Azji. Natomiast w~przypadku Ameryk problem ten występował najczęściej w~krajach o najwyższym dochodzie.
+
+Analizując tabelę \ref{Średnie samobójstwa w danym incomeLevel} możemy zatem stwierdzić, że problem dotykał najczęściej krajów o~dochodach, które są największe, bądź oscylowały w~granicach średnich. Interesujące może się wydawać to, że nie widzimy silnego związku pomiędzy średnimi PKB per capita i~średnią liczbą samobójstw przy podziale na wysokość dochodów. Kontynenty charakteryzujące się największym odsetkiem samobójstw dla przychodów poniżej średniej, nie były opisywane jako te o~najwyższym, czy najniższym PKB per capita. Może to oznaczać mały wpływ dochodów na próbę popełnienia samobójstwa w odniesieniu globalnym. Wskazuje to na rozbieżności w~postrzeganiu stawki pieniądza w~odniesieniu do wartości życia na różnych kontynentach.
+
+\section{Podsumowanie}
+
+Przeprowadziłyśmy analizę średniej liczby samobójstw na 100.000 mieszkańców na sześciu głównych kontynentach (w~latach 2000--2019). Najczęściej problem ten był obserwowany w~Europie, a~pod koniec badanego przedziału --- w~Australii i~Oceanii. Najmniejsza średnia liczba samobójstw była odnotowywana w~Ameryce Północnej. W~przypadku Europy i~Azji zaobserwowałyśmy trend malejący, co zdecydowanie napawa optymizmem.
+
+Jako czynniki mogące mieć wpływ na liczbę zamachów samobójczych wybrałyśmy średnie PKB per capita i~średni poziom przychodów dla każdego z~kontynentów. Możemy stwierdzić, że pierwszy z~czynników ma potencjalnie wpływ na skalę problemu --- zazwyczaj wraz ze wzrostem PKB, maleje liczba samobójstw. Tego zachowania nie obserwujemy natomiast dla dwóch kontynentów (Ameryki Południowej oraz Australii i~Oceanii). W~przypadku drugiego czynnika nie odnotowałyśmy silnych zależności globalnych. Oznacza to, że każdy z~kontynentów cechuje się innym podejściem mieszkańców do wartości życia i~dochodów (co może być również podstawą do dalszych badań).
+
+Z~całą pewnością możemy stwierdzić, że skala samobójstw na świecie jest zatrważająca i~bezwzględnie należy ją obniżyć. Z~analizy wynika, że wszystkie programy mające na celu zapobieganiu samobójstwom i~uświadamianiu ludziom stopnia tego problemu, powinny być dobierane indywidualnie pod potrzeby i~przekonania na danym kontynencie. Nie jesteśmy w~stanie stworzyć jednego, uniwersalnego manifestu, który byłby przekonujący dla każdego człowieka na świecie. 
+
+Po przeprowadzonej analizie wyników narodziło się wiele pytań i~wątpliwości, które należałoby sprawdzić w~kolejnych badaniach. Liczymy na to, że jest to podstawa do zgłębienia tematu, w~celu utrzymania spadkowego trendu liczby popełnianych samobójstw w~Europie i~Azji oraz stworzenia go na innych kontynentach.
+
+\end{document}
+
