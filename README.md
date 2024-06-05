@@ -8,10 +8,14 @@ konkretnych grup społecznych. Być może dzięki wypracowaniu przekonania,
 że osoba pozbawiona chęci do życia nie jest sama i mimo wszystko komuś na
 niej zależy, udałoby się znacznie zminimalizować efekt badanego zagadnienia.
 W pracy postaramy się zatem odpowiedzieć na poniższe pytania:
+
 — Jak wyglądają statystyki odbierania sobie życia na poszczególnych kontynentach?
+
 — Czy statystyki zamachów samobójczych zmieniały się na przestrzeni 20
 lat przed pandemią?
+
 — Czy prawdopodobieństwo popełnienia samobójstwa ma związek z wartością
 dóbr, które posiadamy?
+
 — Czy poziom przychodów może mieć wpływ na przeprowadzenie próby
 samobójczej?
